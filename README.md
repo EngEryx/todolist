@@ -10,6 +10,7 @@ Minimalist task management. PIN protected, offline-first, zero tracking.
 - **Offline First** - All data stored in localStorage, no backend required
 - **Zero Tracking** - No accounts, no cloud sync, no analytics
 - **Minimalist Design** - Monochrome theme (black/white/gray)
+- **Theme Toggle** - Light, dark, and system preference modes
 - **Responsive** - Works on mobile and desktop
 
 ## Tech Stack
@@ -33,6 +34,7 @@ src/
     Landing.tsx       Hero and feature highlights
     PinGate.tsx       PIN setup and verification
     TodoList.tsx      Task management interface
+    ThemeToggle.tsx   Light/dark/system theme switcher
   lib/
     storage.ts        localStorage helpers
     pin.ts            PIN hashing and validation
@@ -62,6 +64,20 @@ Manual deploy:
 ```bash
 npx vercel --prod
 ```
+
+## Roadmap
+
+Planned features for future releases:
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| List Sharing | Share lists with friends via invite link | Planned |
+| Real-time Sync | Live updates across all members | Planned |
+| Comments | Add comments to individual todos | Planned |
+| Chat | Real-time chat per shared list | Planned |
+| Presence | See who is online viewing the list | Planned |
+
+Backend infrastructure (Supabase) required for collaboration features.
 
 ## License
 

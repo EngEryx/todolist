@@ -9,6 +9,7 @@ import {
   deleteTodo,
   clearCompleted,
 } from '@/lib/storage';
+import ThemeToggle from './ThemeToggle';
 
 type Filter = 'all' | 'active' | 'completed';
 
@@ -64,13 +65,16 @@ export default function TodoList() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-light tracking-tight">void</h1>
-          <p className="text-gray-400 text-sm mt-1">
-            {activeCount === 0
-              ? 'All clear'
-              : `${activeCount} task${activeCount !== 1 ? 's' : ''} remaining`}
-          </p>
+        <div className="max-w-2xl mx-auto px-4 py-6 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-light tracking-tight">void</h1>
+            <p className="text-gray-400 text-sm mt-1">
+              {activeCount === 0
+                ? 'All clear'
+                : `${activeCount} task${activeCount !== 1 ? 's' : ''} remaining`}
+            </p>
+          </div>
+          <ThemeToggle />
         </div>
       </header>
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import ThemeToggle from './ThemeToggle';
 
 export default function Landing() {
   const [mounted, setMounted] = useState(false);
@@ -12,6 +13,9 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <header className="absolute top-0 right-0 p-4">
+        <ThemeToggle />
+      </header>
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-16">
         <div
           className={`text-center max-w-2xl transition-all duration-1000 ${
