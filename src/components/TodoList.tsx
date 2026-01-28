@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Todo,
   getTodos,
+  saveTodos,
   addTodo,
   toggleTodo,
   deleteTodo,
   clearCompleted,
 } from '@/lib/storage';
+import { p2pSync, ConnectionStatus, SyncMessage } from '@/lib/peer';
 import ThemeToggle from './ThemeToggle';
+import P2PShare from './P2PShare';
 
 type Filter = 'all' | 'active' | 'completed';
 
@@ -18,31 +21,149 @@ export default function TodoList() {
   const [input, setInput] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [mounted, setMounted] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Handle incoming P2P messages
+  const handleP2PMessage = useCallback((message: SyncMessage) => {
+    switch (message.type) {
+      case 'sync':
+        // Merge todos: combine both lists, prefer newer by createdAt
+        setTodos((currentTodos) => {
+          const merged = new Map<string, Todo>();
+
+          // Add current todos
+          currentTodos.forEach((t) => merged.set(t.id, t));
+
+          // Merge incoming todos
+          message.todos.forEach((t) => {
+            const existing = merged.get(t.id);
+            if (!existing || t.createdAt > existing.createdAt) {
+              merged.set(t.id, t);
+            }
+          });
+
+          const newTodos = Array.from(merged.values()).sort(
+            (a, b) => b.createdAt - a.createdAt
+          );
+          saveTodos(newTodos);
+          return newTodos;
+        });
+        break;
+
+      case 'add':
+        setTodos((currentTodos) => {
+          if (currentTodos.some((t) => t.id === message.todo.id)) {
+            return currentTodos;
+          }
+          const newTodos = [message.todo, ...currentTodos];
+          saveTodos(newTodos);
+          return newTodos;
+        });
+        break;
+
+      case 'toggle':
+        setTodos((currentTodos) => {
+          const newTodos = currentTodos.map((t) =>
+            t.id === message.id ? { ...t, completed: message.completed } : t
+          );
+          saveTodos(newTodos);
+          return newTodos;
+        });
+        break;
+
+      case 'delete':
+        setTodos((currentTodos) => {
+          const newTodos = currentTodos.filter((t) => t.id !== message.id);
+          saveTodos(newTodos);
+          return newTodos;
+        });
+        break;
+
+      case 'clear-completed':
+        setTodos((currentTodos) => {
+          const newTodos = currentTodos.filter((t) => !t.completed);
+          saveTodos(newTodos);
+          return newTodos;
+        });
+        break;
+    }
+  }, []);
 
   useEffect(() => {
     setTodos(getTodos());
     setMounted(true);
-  }, []);
+
+    // Set up P2P handlers
+    p2pSync.setMessageHandler(handleP2PMessage);
+    p2pSync.setStatusHandler((status) => {
+      setConnectionStatus(status);
+
+      // When connected, sync todos
+      if (status === 'connected') {
+        const currentTodos = getTodos();
+        p2pSync.sendTodos(currentTodos);
+      }
+    });
+
+    return () => {
+      p2pSync.disconnect();
+    };
+  }, [handleP2PMessage]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    setTodos(addTodo(input));
+
+    const newTodos = addTodo(input);
+    setTodos(newTodos);
+
+    // Sync new todo
+    const addedTodo = newTodos[0];
+    p2pSync.sendAdd(addedTodo);
+
     setInput('');
     inputRef.current?.focus();
   };
 
   const handleToggle = (id: string) => {
+    const todo = todos.find((t) => t.id === id);
+    if (!todo) return;
+
     setTodos(toggleTodo(id));
+    p2pSync.sendToggle(id, !todo.completed);
   };
 
   const handleDelete = (id: string) => {
     setTodos(deleteTodo(id));
+    p2pSync.sendDelete(id);
   };
 
   const handleClearCompleted = () => {
     setTodos(clearCompleted());
+    p2pSync.sendClearCompleted();
+  };
+
+  const handleCreateRoom = async () => {
+    const code = await p2pSync.createRoom();
+    setRoomCode(code);
+    setIsHost(true);
+    return code;
+  };
+
+  const handleJoinRoom = async (code: string) => {
+    await p2pSync.joinRoom(code);
+    setRoomCode(code);
+    setIsHost(false);
+  };
+
+  const handleDisconnect = () => {
+    p2pSync.disconnect();
+    setRoomCode(null);
+    setIsHost(false);
   };
 
   const filteredTodos = todos.filter((todo) => {
@@ -62,19 +183,49 @@ export default function TodoList() {
     );
   }
 
+  const statusColors: Record<ConnectionStatus, string> = {
+    disconnected: 'bg-gray-400',
+    connecting: 'bg-yellow-400 animate-pulse',
+    connected: 'bg-green-500',
+    error: 'bg-red-500',
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
         <div className="max-w-2xl mx-auto px-4 py-6 flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-light tracking-tight">void</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-light tracking-tight">void</h1>
+              {roomCode && (
+                <div className={`w-2 h-2 rounded-full ${statusColors[connectionStatus]}`} title={connectionStatus} />
+              )}
+            </div>
             <p className="text-gray-400 text-sm mt-1">
               {activeCount === 0
                 ? 'All clear'
                 : `${activeCount} task${activeCount !== 1 ? 's' : ''} remaining`}
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowShare(true)}
+              className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors relative"
+              title="Share list"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              {connectionStatus === 'connected' && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-background" />
+              )}
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -185,6 +336,17 @@ export default function TodoList() {
           </div>
         )}
       </main>
+
+      <P2PShare
+        isOpen={showShare}
+        onClose={() => setShowShare(false)}
+        onCreateRoom={handleCreateRoom}
+        onJoinRoom={handleJoinRoom}
+        onDisconnect={handleDisconnect}
+        connectionStatus={connectionStatus}
+        roomCode={roomCode}
+        isHost={isHost}
+      />
     </div>
   );
 }
