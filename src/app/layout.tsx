@@ -38,13 +38,12 @@ export const viewport: Viewport = {
 
 const themeScript = `
   (function() {
-    const theme = localStorage.getItem('void_theme') || 'system';
-    const root = document.documentElement;
-    if (theme === 'system') {
-      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.classList.add(systemDark ? 'dark' : 'light');
-    } else {
-      root.classList.add(theme);
+    var stored = localStorage.getItem('void_theme');
+    var theme = (stored === 'light' || stored === 'dark') ? stored :
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    document.documentElement.classList.add(theme);
+    if (theme === 'dark') {
+      document.body.style.backgroundColor = '#0a0a0a';
     }
   })();
 `;
