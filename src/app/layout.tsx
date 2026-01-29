@@ -39,8 +39,7 @@ export const viewport: Viewport = {
 const themeScript = `
   (function() {
     var stored = localStorage.getItem('void_theme');
-    var theme = (stored === 'light' || stored === 'dark') ? stored :
-      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var theme = (stored === 'light') ? 'light' : 'dark';
     document.documentElement.classList.add(theme);
     if (theme === 'dark') {
       document.body.style.backgroundColor = '#0a0a0a';
